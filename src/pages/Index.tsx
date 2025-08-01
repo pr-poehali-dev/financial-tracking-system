@@ -24,6 +24,7 @@ const Index = () => {
   const [showAddCredit, setShowAddCredit] = useState(false);
   const [showAddPayment, setShowAddPayment] = useState(false);
   const [showLogin, setShowLogin] = useState(false);
+  const [isLoginMode, setIsLoginMode] = useState(true);
   const [user, setUser] = useState(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [transactionFilters, setTransactionFilters] = useState({
@@ -130,6 +131,21 @@ const Index = () => {
     },
     onError: (error: any) => {
       toast.error(error?.message || 'Ошибка входа');
+    }
+  });
+
+  const registerMutation = useMutation({
+    mutationFn: api.register.bind(api),
+    onSuccess: (response) => {
+      if (response.data) {
+        setUser(response.data.user);
+        setIsAuthenticated(true);
+        toast.success(`Добро пожаловать, ${response.data.user.username}! Регистрация прошла успешно`);
+        setShowLogin(false);
+      }
+    },
+    onError: (error: any) => {
+      toast.error(error?.message || 'Ошибка регистрации');
     }
   });
 
@@ -367,31 +383,133 @@ const Index = () => {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <Card className="w-full max-w-md">
-          <CardHeader>
-            <CardTitle>Вход в систему</CardTitle>
-            <CardDescription>Войдите в свой аккаунт для продолжения</CardDescription>
+          <CardHeader className="text-center">
+            <CardTitle className="text-2xl">
+              {isLoginMode ? 'Вход в систему' : 'Регистрация'}
+            </CardTitle>
+            <CardDescription>
+              {isLoginMode 
+                ? 'Войдите в свой аккаунт для продолжения' 
+                : 'Создайте новый аккаунт для начала работы'
+              }
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={(e) => {
               e.preventDefault();
               const formData = new FormData(e.target as HTMLFormElement);
-              loginMutation.mutate({
-                email: formData.get('email') as string,
-                password: formData.get('password') as string
-              });
+              
+              if (isLoginMode) {
+                loginMutation.mutate({
+                  email: formData.get('email') as string,
+                  password: formData.get('password') as string
+                });
+              } else {
+                const password = formData.get('password') as string;
+                const confirmPassword = formData.get('confirmPassword') as string;
+                
+                if (password !== confirmPassword) {
+                  toast.error('Пароли не совпадают');
+                  return;
+                }
+                
+                if (password.length < 6) {
+                  toast.error('Пароль должен содержать минимум 6 символов');
+                  return;
+                }
+                
+                registerMutation.mutate({
+                  username: formData.get('username') as string,
+                  email: formData.get('email') as string,
+                  password: password,
+                  confirmPassword: confirmPassword
+                });
+              }
             }}>
               <div className="space-y-4">
+                {!isLoginMode && (
+                  <div>
+                    <Label htmlFor="username">Имя пользователя</Label>
+                    <Input 
+                      id="username" 
+                      name="username" 
+                      type="text" 
+                      placeholder="Введите имя пользователя"
+                      required 
+                    />
+                  </div>
+                )}
+                
                 <div>
                   <Label htmlFor="email">Email</Label>
-                  <Input id="email" name="email" type="email" required />
+                  <Input 
+                    id="email" 
+                    name="email" 
+                    type="email" 
+                    placeholder="example@mail.com"
+                    required 
+                  />
                 </div>
+                
                 <div>
                   <Label htmlFor="password">Пароль</Label>
-                  <Input id="password" name="password" type="password" required />
+                  <Input 
+                    id="password" 
+                    name="password" 
+                    type="password" 
+                    placeholder={isLoginMode ? "Введите пароль" : "Минимум 6 символов"}
+                    minLength={isLoginMode ? undefined : 6}
+                    required 
+                  />
+                  {!isLoginMode && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      Пароль должен содержать минимум 6 символов
+                    </p>
+                  )}
                 </div>
-                <Button type="submit" className="w-full" disabled={loginMutation.isPending}>
-                  {loginMutation.isPending ? 'Вход...' : 'Войти'}
+                
+                {!isLoginMode && (
+                  <div>
+                    <Label htmlFor="confirmPassword">Подтвердите пароль</Label>
+                    <Input 
+                      id="confirmPassword" 
+                      name="confirmPassword" 
+                      type="password" 
+                      placeholder="Повторите пароль"
+                      required 
+                    />
+                  </div>
+                )}
+                
+                <Button 
+                  type="submit" 
+                  className="w-full" 
+                  disabled={loginMutation.isPending || registerMutation.isPending}
+                >
+                  {(loginMutation.isPending || registerMutation.isPending) 
+                    ? (isLoginMode ? 'Вход...' : 'Регистрация...') 
+                    : (isLoginMode ? 'Войти' : 'Зарегистрироваться')
+                  }
                 </Button>
+                
+                <div className="text-center">
+                  <Button
+                    type="button"
+                    variant="link"
+                    className="text-sm"
+                    onClick={() => {
+                      setIsLoginMode(!isLoginMode);
+                      // Сбрасываем форму при переключении
+                      const form = document.querySelector('form') as HTMLFormElement;
+                      if (form) form.reset();
+                    }}
+                  >
+                    {isLoginMode 
+                      ? 'Нет аккаунта? Зарегистрироваться' 
+                      : 'Уже есть аккаунт? Войти'
+                    }
+                  </Button>
+                </div>
               </div>
             </form>
           </CardContent>
